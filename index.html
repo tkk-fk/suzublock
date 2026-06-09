@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>すうずブロック｜TKK 特別支援教材開発研究所</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --block-size: clamp(44px, 11vmin, 76px);
+    --orange: #f97c2b;
+    --orange-light: #ffa05c;
+    --orange-dark: #d95f10;
+    --blue: #4aa8e0;
+    --blue-light: #7cc6f0;
+    --blue-dark: #2b86bd;
+    --bg: #fdfbf6;
+    --ink: #4a4038;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; overflow:hidden; overscroll-behavior:none; }
+  body{
+    font-family:'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','BIZ UDGothic',sans-serif;
+    background:var(--bg);
+    background-image:radial-gradient(#e8e2d6 1.5px, transparent 1.5px);
+    background-size:28px 28px;
+    color:var(--ink);
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+  }
+
+  /* ===== ばん(ボード) ===== */
+  #board{
+    position:fixed; inset:0;
+    touch-action:none;
+  }
+
+  /* ===== ブロック ===== */
+  .block{
+    position:absolute;
+    width:var(--block-size); height:var(--block-size);
+    border-radius:14%;
+    background:linear-gradient(145deg, var(--orange-light) 0%, var(--orange) 55%, var(--orange-dark) 100%);
+    box-shadow:
+      inset 0 3px 4px rgba(255,255,255,.55),
+      inset 0 -4px 6px rgba(0,0,0,.18),
+      0 3px 6px rgba(74,64,56,.25);
+    cursor:grab;
+    touch-action:none;
+    transition:transform .12s ease;
+    will-change:left, top;
+  }
+  .block.blue{
+    background:linear-gradient(145deg, var(--blue-light) 0%, var(--blue) 55%, var(--blue-dark) 100%);
+  }
+  .block.dragging{
+    transform:scale(1.12);
+    box-shadow:
+      inset 0 3px 4px rgba(255,255,255,.55),
+      inset 0 -4px 6px rgba(0,0,0,.18),
+      0 12px 20px rgba(74,64,56,.3);
+    cursor:grabbing;
+    z-index:100;
+    transition:none;
+  }
+  @keyframes pop{
+    0%{ transform:scale(0); }
+    70%{ transform:scale(1.15); }
+    100%{ transform:scale(1); }
+  }
+  .block.pop{ animation:pop .25s ease-out; }
+  @keyframes gobble{
+    to{ transform:scale(0) rotate(90deg); opacity:0; }
+  }
+  .block.gobble{ animation:gobble .22s ease-in forwards; }
+
+  /* ===== かずの表示 ===== */
+  #counter{
+    position:fixed; top:12px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:10px;
+    background:#fff;
+    border:3px solid #e8e2d6;
+    border-radius:999px;
+    padding:6px 10px 6px 22px;
+    box-shadow:0 3px 8px rgba(74,64,56,.12);
+    z-index:200;
+  }
+  #countNum{
+    font-size:clamp(28px, 5.5vmin, 44px);
+    font-weight:800;
+    min-width:1.6em;
+    text-align:center;
+    line-height:1;
+    color:var(--ink);
+  }
+  #countNum.hidden-num{ color:#cfc8bc; }
+  #counter small{ font-size:clamp(14px,2.5vmin,18px); font-weight:500; color:#9a8f82; }
+  #eyeBtn{
+    border:none; background:#f3efe6; border-radius:999px;
+    width:44px; height:44px; font-size:22px; cursor:pointer;
+    display:grid; place-items:center;
+    transition:background .15s;
+  }
+  #eyeBtn:active{ background:#e4ddcd; }
+
+  /* ===== ＋ボタン ===== */
+  #addBtn{
+    position:fixed; left:18px; bottom:18px;
+    width:clamp(72px,13vmin,96px); height:clamp(72px,13vmin,96px);
+    border:none; border-radius:50%;
+    background:linear-gradient(145deg,#ffb36e,var(--orange) 60%,var(--orange-dark));
+    color:#fff;
+    font-size:clamp(40px,7vmin,56px);
+    font-weight:800;
+    line-height:1;
+    box-shadow:0 5px 0 var(--orange-dark), 0 8px 14px rgba(74,64,56,.3);
+    cursor:pointer;
+    z-index:200;
+    transition:transform .08s, box-shadow .08s;
+    font-family:inherit;
+  }
+  #addBtn:active{
+    transform:translateY(4px);
+    box-shadow:0 1px 0 var(--orange-dark), 0 3px 6px rgba(74,64,56,.3);
+  }
+
+  /* ===== ゴミばこ ===== */
+  #trash{
+    position:fixed; right:18px; bottom:18px;
+    width:clamp(80px,14vmin,104px); height:clamp(80px,14vmin,104px);
+    display:grid; place-items:center;
+    background:#fff;
+    border:3px dashed #cfc8bc;
+    border-radius:24px;
+    z-index:90;
+    transition:transform .15s, border-color .15s, background .15s;
+  }
+  #trash svg{ width:55%; height:55%; }
+  #trash .lid{ transition:transform .15s; transform-origin:78% 30%; }
+  #trash.hot{
+    transform:scale(1.18);
+    border-color:#e8584a;
+    background:#fff1ef;
+  }
+  #trash.hot .lid{ transform:rotate(-28deg); }
+
+  /* ===== ぜんぶけす ===== */
+  #clearBtn{
+    position:fixed; top:14px; right:14px;
+    border:none; background:#fff; color:#9a8f82;
+    border:2px solid #e8e2d6;
+    border-radius:999px;
+    font-family:inherit; font-weight:500;
+    font-size:clamp(13px,2.4vmin,16px);
+    padding:10px 16px;
+    cursor:pointer; z-index:200;
+    transition:all .15s;
+  }
+  #clearBtn.confirm{ background:#e8584a; border-color:#e8584a; color:#fff; font-weight:800; }
+
+  /* はじめのメッセージ */
+  #hint{
+    position:fixed; left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    color:#b8ae9e; font-size:clamp(16px,3vmin,22px); font-weight:500;
+    text-align:center; line-height:1.9;
+    pointer-events:none;
+    transition:opacity .4s;
+    z-index:1;
+  }
+  #hint.gone{ opacity:0; }
+</style>
+</head>
+<body>
+
+<div id="board"></div>
+
+<div id="counter">
+  <span id="countNum" class="hidden-num">？</span><small>こ</small>
+  <button id="eyeBtn" aria-label="かずを みせる">🙈</button>
+</div>
+
+<button id="clearBtn">ぜんぶ けす</button>
+
+<button id="addBtn" aria-label="ブロックを ふやす">＋</button>
+
+<div id="trash" aria-label="ゴミばこ">
+  <svg viewBox="0 0 64 64" fill="none">
+    <g class="lid">
+      <rect x="14" y="14" width="36" height="6" rx="3" fill="#9a8f82"/>
+      <rect x="26" y="8" width="12" height="8" rx="3" fill="#9a8f82"/>
+    </g>
+    <path d="M18 24 h28 l-3 32 a4 4 0 0 1-4 4 H25 a4 4 0 0 1-4-4 z" fill="#b8ae9e"/>
+    <rect x="26" y="30" width="4" height="22" rx="2" fill="#fdfbf6"/>
+    <rect x="34" y="30" width="4" height="22" rx="2" fill="#fdfbf6"/>
+  </svg>
+</div>
+
+<div id="hint">＋ボタンを おしてみよう</div>
+
+<script>
+(function(){
+  const board   = document.getElementById('board');
+  const addBtn  = document.getElementById('addBtn');
+  const trash   = document.getElementById('trash');
+  const counter = document.getElementById('countNum');
+  const eyeBtn  = document.getElementById('eyeBtn');
+  const clearBtn= document.getElementById('clearBtn');
+  const hint    = document.getElementById('hint');
+
+  let slot = 0;            // つぎに ならべる ばしょ
+  let countVisible = false;   // はじめは かくれている
+  let clearArmed = false;
+  let clearTimer = null;
+
+  function blockSize(){
+    return parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--block-size')) ||
+      document.querySelector('.block')?.offsetWidth || 64;
+  }
+
+  function updateCount(){
+    const n = document.querySelectorAll('.block:not(.gobble)').length;
+    counter.textContent = countVisible ? n : '？';
+  }
+
+  /* ----- ブロックの しゅつげん いち(5こずつ よこに ならぶ) ----- */
+  // 5この まとまりが よこに ならび、はばに あわせて 行が 下へ ふえていく
+  // (スマホ縦なら 1行5こ、よこながの がめんなら 1行10こ など)
+  function spawnPos(i){
+    const s = blockSize();
+    const gap = s * 0.18;            // ブロックの あいだ
+    const groupGap = s * 0.55;       // 5こごとの あいだ
+    const step = s + gap;            // 1こぶんの すすみはば
+    const margin = 16;
+    const topSafe = 92;                                  // カウンターの 下
+    const bottomSafe = window.innerHeight - s - 130;     // ボタンの 上
+    const rightSafe  = window.innerWidth  - s - margin;
+
+    const groupSpan = 5 * step + groupGap;               // 1まとまり + すきま
+
+    // 1行に 5この まとまりが いくつ はいるか(さいてい1)
+    const groupsPerRow = Math.max(1, Math.floor((rightSafe - margin + groupGap) / groupSpan));
+    const perRow = groupsPerRow * 5;
+    const row = Math.floor(i / perRow);
+    const j   = i % perRow;
+    const g   = Math.floor(j / 5);
+    let x = margin + (j % 5) * step + g * groupSpan;
+    let y = topSafe + row * (s + gap * 2.2);
+    // 下に はみだしたら、すこし ずらして かさねる
+    if (y > bottomSafe){
+      const over = row - Math.floor((bottomSafe - topSafe) / (s + gap * 2.2));
+      y = topSafe + (over * s * 0.4) % Math.max(bottomSafe - topSafe, 1);
+      x = margin + (over * s * 0.3) % Math.max(rightSafe - margin, 1) + (j % 5) * step * 0.2;
+    }
+    return {x, y};
+  }
+
+  /* ----- がめんサイズが かわったら、はみだした ブロックを なかへ ----- */
+  function clampAllBlocks(){
+    const s = blockSize();
+    const maxX = window.innerWidth  - s * 0.7;
+    const maxY = window.innerHeight - s * 0.7;
+    document.querySelectorAll('.block').forEach(b => {
+      let x = b.offsetLeft, y = b.offsetTop;
+      const nx = Math.max(-s * 0.3, Math.min(x, maxX));
+      const ny = Math.max(-s * 0.3, Math.min(y, maxY));
+      if (nx !== x) b.style.left = nx + 'px';
+      if (ny !== y) b.style.top  = ny + 'px';
+    });
+  }
+  window.addEventListener('resize', clampAllBlocks);
+  window.addEventListener('orientationchange', () => setTimeout(clampAllBlocks, 300));
+
+  function addBlock(){
+    const b = document.createElement('div');
+    b.className = 'block pop';
+    const p = spawnPos(slot++);
+    b.style.left = p.x + 'px';
+    b.style.top  = p.y + 'px';
+    board.appendChild(b);
+    b.addEventListener('animationend', () => b.classList.remove('pop'), {once:true});
+    hint.classList.add('gone');
+    updateCount();
+  }
+
+  addBtn.addEventListener('click', addBlock);
+
+  /* ----- ドラッグ(マウス・ゆび どちらも) ----- */
+  let drag = null;
+
+  board.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.block');
+    if (!b) return;
+    e.preventDefault();
+    b.setPointerCapture(e.pointerId);
+    drag = {
+      el: b,
+      startX: e.clientX, startY: e.clientY,
+      offX: e.clientX - b.offsetLeft,
+      offY: e.clientY - b.offsetTop,
+      moved: false
+    };
+    b.classList.add('dragging');
+  });
+
+  board.addEventListener('pointermove', e => {
+    if (!drag || drag.el.hasPointerCapture?.(e.pointerId) === false) return;
+    const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) drag.moved = true;
+    if (!drag.moved) return;
+    const s = blockSize();
+    let x = e.clientX - drag.offX;
+    let y = e.clientY - drag.offY;
+    x = Math.max(-s*0.3, Math.min(x, window.innerWidth  - s*0.7));
+    y = Math.max(-s*0.3, Math.min(y, window.innerHeight - s*0.7));
+    drag.el.style.left = x + 'px';
+    drag.el.style.top  = y + 'px';
+    trash.classList.toggle('hot', overTrash(drag.el));
+  });
+
+  function endDrag(e){
+    if (!drag) return;
+    const b = drag.el;
+    b.classList.remove('dragging');
+    trash.classList.remove('hot');
+
+    if (drag.moved && overTrash(b)){
+      // ゴミばこに ポイ
+      b.classList.add('gobble');
+      b.addEventListener('animationend', () => { b.remove(); updateCount(); }, {once:true});
+      updateCount();
+    } else if (!drag.moved){
+      // タップ → いろを ひっくりかえす
+      b.classList.toggle('blue');
+    }
+    drag = null;
+  }
+  board.addEventListener('pointerup', endDrag);
+  board.addEventListener('pointercancel', endDrag);
+
+  function overTrash(b){
+    const t = trash.getBoundingClientRect();
+    const r = b.getBoundingClientRect();
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    return cx > t.left - 8 && cx < t.right + 8 && cy > t.top - 8 && cy < t.bottom + 8;
+  }
+
+  /* ----- かずを かくす/みせる ----- */
+  eyeBtn.addEventListener('click', () => {
+    countVisible = !countVisible;
+    eyeBtn.textContent = countVisible ? '👀' : '🙈';
+    counter.classList.toggle('hidden-num', !countVisible);
+    updateCount();
+  });
+
+  /* ----- ぜんぶ けす(2かい おして かくにん) ----- */
+  clearBtn.addEventListener('click', () => {
+    if (!clearArmed){
+      clearArmed = true;
+      clearBtn.textContent = 'ほんとに けす？';
+      clearBtn.classList.add('confirm');
+      clearTimer = setTimeout(resetClearBtn, 2500);
+      return;
+    }
+    clearTimeout(clearTimer);
+    document.querySelectorAll('.block').forEach(b => b.remove());
+    slot = 0;
+    updateCount();
+    hint.classList.remove('gone');
+    resetClearBtn();
+  });
+  function resetClearBtn(){
+    clearArmed = false;
+    clearBtn.textContent = 'ぜんぶ けす';
+    clearBtn.classList.remove('confirm');
+  }
+
+  /* ダブルタップずーむ ぼうし */
+  document.addEventListener('dblclick', e => e.preventDefault(), {passive:false});
+})();
+</script>
+</body>
+</html>
